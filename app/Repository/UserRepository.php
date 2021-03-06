@@ -42,8 +42,12 @@ class UserRepository extends BaseRepository
     }
 
     public function createOrUpdate($id = null, $request)
-    { 
-        $model = is_null($id) ? new User : User::findOrFail($id);
+    {
+        //original
+        //$model = is_null($id) ? new User : User::findOrFail($id);
+
+        //refactor
+        $model = is_null($id) ? new User() : User::findOrFail($id);
         $model->user_type = $request['role'];
         $model->name = $request['name'];
         $model->company_id = $request['company_id'] != '' ? $request['company_id'] : 0;
@@ -53,27 +57,48 @@ class UserRepository extends BaseRepository
         $model->phone = $request['phone'];
         $model->mobile = $request['mobile'];
 
+        //original
+        // if (!$id || $id && $request['password']) $model->password = bcrypt($request['password']);
+        // $model->detachAllRoles();
+        // $model->save();
+        // $model->attachRole($request['role']);
+        // $data = array();
 
-        if (!$id || $id && $request['password']) $model->password = bcrypt($request['password']);
-        $model->detachAllRoles();
-        $model->save();
-        $model->attachRole($request['role']);
-        $data = array();
+        //refactor
+        if(!$id || $id && $request['password']){
+          $model->password = bcrypt($request['password']);
+          $model->detachAllRoles();
+          $model->save();
+          $model->attachRole($request['role']);
+          $data = array();
+        }
 
         if ($request['role'] == env('CUSTOMER_ROLE_ID')) {
+            //original
+            // if($request['consumer_type'] == 'paid')
+            // {
+            //     if($request['company_id'] == '')
+            //     {
+            //         $type = Type::where('code', 'paid')->first();
+            //         $company = Company::create(['name' => $request['name'], 'type_id' => $type->id, 'additional_info' => 'Created automatically for user ' . $model->id]);
+            //         $department = Department::create(['name' => $request['name'], 'company_id' => $company->id, 'additional_info' => 'Created automatically for user ' . $model->id]);
+            //
+            //         $model->company_id = $company->id;
+            //         $model->department_id = $department->id;
+            //         $model->save();
+            //     }
+            // }
 
-            if($request['consumer_type'] == 'paid')
+            //refactor
+            if($request['consumer_type'] == 'paid' && $request['company_id'] == '')
             {
-                if($request['company_id'] == '')
-                {
-                    $type = Type::where('code', 'paid')->first();
-                    $company = Company::create(['name' => $request['name'], 'type_id' => $type->id, 'additional_info' => 'Created automatically for user ' . $model->id]);
-                    $department = Department::create(['name' => $request['name'], 'company_id' => $company->id, 'additional_info' => 'Created automatically for user ' . $model->id]);
+              $type = Type::where('code', 'paid')->first();
+              $company = Company::create(['name' => $request['name'], 'type_id' => $type->id, 'additional_info' => 'Created automatically for user ' . $model->id]);
+              $department = Department::create(['name' => $request['name'], 'company_id' => $company->id, 'additional_info' => 'Created automatically for user ' . $model->id]);
 
-                    $model->company_id = $company->id;
-                    $model->department_id = $department->id;
-                    $model->save();
-                }
+              $model->company_id = $company->id;
+              $model->department_id = $department->id;
+              $model->save();
             }
 
             $user_meta = UserMeta::firstOrCreate(['user_id' => $model->id]);
@@ -88,14 +113,29 @@ class UserRepository extends BaseRepository
             $user_meta->country = $request['country'];
             $user_meta->reference = (isset($request['reference']) && $request['reference'] == 'yes') ? '1' : '0';
             $user_meta->additional_info = $request['additional_info'];
-            $user_meta->cost_place = isset($request['cost_place']) ? $request['cost_place'] : '';
-            $user_meta->fee = isset($request['fee']) ? $request['fee'] : '';
-            $user_meta->time_to_charge = isset($request['time_to_charge']) ? $request['time_to_charge'] : '';
-            $user_meta->time_to_pay = isset($request['time_to_pay']) ? $request['time_to_pay'] : '';
-            $user_meta->charge_ob = isset($request['charge_ob']) ? $request['charge_ob'] : '';
-            $user_meta->customer_id = isset($request['customer_id']) ? $request['customer_id'] : '';
-            $user_meta->charge_km = isset($request['charge_km']) ? $request['charge_km'] : '';
-            $user_meta->maximum_km = isset($request['maximum_km']) ? $request['maximum_km'] : '';
+            //original
+            //$user_meta->cost_place = isset($request['cost_place']) ? $request['cost_place'] : '';
+
+            //refactor
+            $user_meta->cost_place = $this->noRecode($request['cost_place']);
+
+            //original
+            // $user_meta->fee = isset($request['fee']) ? $request['fee'] : '';
+            // $user_meta->time_to_charge = isset($request['time_to_charge']) ? $request['time_to_charge'] : '';
+            // $user_meta->time_to_pay = isset($request['time_to_pay']) ? $request['time_to_pay'] : '';
+            // $user_meta->charge_ob = isset($request['charge_ob']) ? $request['charge_ob'] : '';
+            // $user_meta->customer_id = isset($request['customer_id']) ? $request['customer_id'] : '';
+            // $user_meta->charge_km = isset($request['charge_km']) ? $request['charge_km'] : '';
+            // $user_meta->maximum_km = isset($request['maximum_km']) ? $request['maximum_km'] : '';
+
+            //refactor
+            $user_meta->fee = $this->noRecode($request['fee']);
+            $user_meta->time_to_charge = $this->noRecode($request['time_to_charge']);
+            $user_meta->time_to_pay = $this->noRecode($request['time_to_pay']);
+            $user_meta->charge_ob = $this->noRecode($request['charge_ob']);
+            $user_meta->customer_id = $this->noRecode($request['customer_id']);
+            $user_meta->charge_km = $this->noRecode($request['charge_km']);
+            $user_meta->maximum_km = $this->noRecode($request['maximum_km']);
             $user_meta->save();
             $new_meta = $user_meta->toArray();
 
@@ -210,6 +250,11 @@ class UserRepository extends BaseRepository
         }
         return $model ? $model : false;
     }
+    
+    public function noRecode($a)
+    {
+      return isset($a) ? $a : '';
+    }
 
     public function enable($id)
     {
@@ -231,5 +276,5 @@ class UserRepository extends BaseRepository
     {
         return User::where('user_type', 2)->get();
     }
-    
+
 }
